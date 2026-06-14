@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package chat;
+
+service chatRoute {
+    rpc userChat(stream userQuery) returns (stream userResponse) {}
+}
+
+message userQuery {
+    string message = 1;
+}
+
+message userResponse {
+    string message = 1;
+}

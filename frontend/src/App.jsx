@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
 // Minimal icons
@@ -29,6 +30,7 @@ function App() {
   ]);
   const [inputText, setInputText] = useState("");
   const [attachedVideo, setAttachedVideo] = useState(null); // { name, size }
+  const [isSending, setIsSending] = useState(false);
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -62,31 +64,75 @@ function App() {
   };
 
   // Send message
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     if (e) e.preventDefault();
-    if (!inputText.trim() && !attachedVideo) return;
+    const outgoingText = inputText.trim();
+    if ((!outgoingText && !attachedVideo) || isSending) return;
 
     const userMsg = {
       id: `u-${Date.now()}`,
       role: "user",
-      content: inputText,
+      content: outgoingText,
       timestamp: Date.now(),
       video: attachedVideo ? { name: attachedVideo.name, size: attachedVideo.size } : null
     };
 
-    const botMsg = {
-      id: `a-${Date.now() + 1}`,
-      role: "assistant",
-      content: attachedVideo
-        ? `I have successfully received your video: **${attachedVideo.name}** (${attachedVideo.size}). I'll look over it!`
-        : `Message received! Let me know if you want to upload a screen demo or walkthrough video.`,
-      timestamp: Date.now() + 10
-    };
+    setMessages((currentMessages) => [...currentMessages, userMsg]);
 
-    setMessages([...messages, userMsg, botMsg]);
     setInputText("");
     setAttachedVideo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (!outgoingText) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          id: `a-${Date.now() + 1}`,
+          role: "assistant",
+          content: "The gRPC server accepts text messages right now.",
+          timestamp: Date.now() + 10
+        }
+      ]);
+      return;
+    }
+
+    const assistantId = `a-${Date.now() + 1}`;
+    setIsSending(true);
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "Waiting for chat_server.py...",
+        timestamp: Date.now() + 10,
+        pending: true
+      }
+    ]);
+
+    try {
+      const serverMessages = await invoke("stream_chat_message", { message: outgoingText });
+      const content = serverMessages.length
+        ? serverMessages.join("\n")
+        : "chat_server.py finished without sending a response.";
+
+      setMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === assistantId
+            ? { ...message, content, pending: false }
+            : message
+        )
+      );
+    } catch (error) {
+      setMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === assistantId
+            ? { ...message, content: String(error), pending: false, error: true }
+            : message
+        )
+      );
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -104,7 +150,7 @@ function App() {
             <span className="message-sender">
               {msg.role === "user" ? "You" : "Assistant"}
             </span>
-            <div className="bubble">
+            <div className={`bubble ${msg.pending ? "pending" : ""} ${msg.error ? "error" : ""}`}>
               {msg.video && (
                 <div className="bubble-attachment">
                   <VideoIcon />
@@ -173,12 +219,13 @@ function App() {
                   handleSend();
                 }
               }}
+              disabled={isSending}
             />
 
             <button
               type="submit"
               className="send-btn"
-              disabled={!inputText.trim() && !attachedVideo}
+              disabled={isSending || (!inputText.trim() && !attachedVideo)}
             >
               <SendIcon />
             </button>

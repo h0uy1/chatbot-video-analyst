@@ -1,8 +1,11 @@
 import torch
 from fastmcp import FastMCP
 from transformers import pipeline
-# Import the model and processor from model/whisper.py
-from model.whisper import model, processor
+from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq, pipeline
+
+model_id = "openai/whisper-large-v3"
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
 
 mcp = FastMCP("Transcription MCP")
 

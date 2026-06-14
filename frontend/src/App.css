@@ -86,6 +86,7 @@ body {
   font-size: 0.95rem;
   line-height: 1.5;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .message-wrapper.user .bubble {
@@ -99,6 +100,15 @@ body {
   background-color: #161824;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-bottom-left-radius: 4px;
+}
+
+.message-wrapper.assistant .bubble.pending {
+  color: #c7d2fe;
+}
+
+.message-wrapper.assistant .bubble.error {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 /* Video Attachment Preview inside Message Bubble */
@@ -211,6 +221,11 @@ body {
 
 .text-input::placeholder {
   color: #6b7280;
+}
+
+.text-input:disabled {
+  color: #9ca3af;
+  cursor: wait;
 }
 
 .send-btn {
