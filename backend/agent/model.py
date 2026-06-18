@@ -23,5 +23,5 @@ def build_local_model():
         model="qwen2.5:3b",
         base_url="http://localhost:11434",
         temperature=0,
-        num_predict=128,
+        num_predict=1024,
     )

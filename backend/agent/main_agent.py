@@ -107,7 +107,7 @@ async def create_agent_with_tools():
     @tool
     async def analyze_video(file_path: str) -> str:
         """
-        Analyze visible content in the given video file path and return a description.
+        Detect the visible content in the given video file path such as objects, scenes, charts, graphs, screenshots, actions, and return a description.
         """
         result = await vision_agent.ainvoke(
             {
@@ -128,13 +128,13 @@ async def create_agent_with_tools():
     You are responsible for answering general user questions and handling requests related to video analysis, transcription, and file generation. You have access to the following tools:
     1. ask_user: Use this tool only when a video, transcription, or file-generation request is missing a required file path or required task detail. Do not use this tool for general questions; answer those directly.
     2. transcript_audio: Use this tool to transcribe audio from video files into text.
-    3. analyze_video: Use this tool to analyze the content of video files and provide descriptions or insights.
+    3. analyze_video: Use this tool to detect the content of video files and provide insights.
     4. generate_powerpoint: Use this tool for generate PowerPoint presentations purpose only based on title and structured slide data.
     5. generate_pdf: Use this tool for generate PDF reports purpose only based on title and summary text.
 
     Tool orchestration rules:
     - Do not assume the server has already routed the request. Decide which tool or tools are needed from the user request and context.
-    - If the user asks for a PowerPoint from an uploaded video, call transcript_audio first, convert the transcript into a concise slide outline, then call generate_powerpoint.
+    - If the user asks for a PowerPoint from an uploaded video, call transcript_audio first, convert the transcript into a slide outline, then call generate_powerpoint.
     - If the user asks for a PDF summary of the discussion, use the provided conversation history as source material, summarize it, then call generate_pdf.
     - If the user asks for analysis and generation in one request, call the required analysis/transcription tools first, then call the generation tool.
     - Answer general knowledge or conversational questions directly without using tools.

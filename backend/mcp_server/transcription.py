@@ -101,7 +101,7 @@ def transcribe_audio_file(audio_path: str) -> str:
 
         # Run transcription on the pure audio file
         print("Transcription: running Whisper...", file=sys.stderr, flush=True)
-        result = pipe(processing_path)
+        result = pipe(processing_path, return_timestamps=True)
         print("Transcription: completed.", file=sys.stderr, flush=True)
         return result["text"]
         
@@ -118,7 +118,7 @@ def transcribe_audio_file(audio_path: str) -> str:
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
-    # testpath = "C:\\Users\\User\\Downloads\\Original_recording5_11.mp4"
+    # testpath = "C:\\Users\\User\\Downloads\\sample-speech-1m.mp4"
     # print("--- Starting Manual Test ---")
     # print(f"Testing path: {testpath}")
     
