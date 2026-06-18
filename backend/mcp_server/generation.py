@@ -31,6 +31,7 @@ def saved_file_response(message, file_path, details):
 @mcp.tool()
 def generate_powerpoint(title: str, slides: list[dict]) -> str:
     """
+    Only use this tool when user mention powerpoint
     Generate a PowerPoint file from structured slide data.
 
     slides format:
@@ -123,6 +124,7 @@ def generate_powerpoint(title: str, slides: list[dict]) -> str:
 @mcp.tool()
 def generate_pdf(title: str, summary: str) -> str:
     """
+    Only use this tool when user mention PDF
     Generate a PDF report from a title and context summary.
 
     Returns the saved .pdf file path.
