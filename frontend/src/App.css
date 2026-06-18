@@ -33,6 +33,13 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
@@ -43,6 +50,27 @@ body {
   background: linear-gradient(120deg, #ffffff, #c084fc);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.fresh-session-btn {
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.fresh-session-btn:hover:not(:disabled) {
+  background-color: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.fresh-session-btn:disabled {
+  color: #6b7280;
+  cursor: wait;
 }
 
 /* Messages Area */

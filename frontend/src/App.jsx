@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { open } from "@tauri-apps/plugin-dialog";
 
 // Minimal icons
 const PaperclipIcon = () => (
@@ -19,18 +20,34 @@ const XIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 );
 
+const createInitialMessage = () => ({
+  id: "init-1",
+  role: "assistant",
+  content: "Hello! This is a video Analyst Assistant. You can send text messages or attach a video with mp4 format to transcript or analyze.",
+  timestamp: Date.now()
+});
+
+const getStoredSessionId = () => {
+  const existing = localStorage.getItem("chat_session_id");
+  if (existing) return existing;
+
+  const created = crypto.randomUUID
+    ? crypto.randomUUID()
+    : `session-${Date.now()}-${Math.random()}`;
+
+  localStorage.setItem("chat_session_id", created);
+  return created;
+};
+
+const fileNameFromPath = (filePath) => filePath.split(/[\\/]/).pop();
+
 function App() {
-  const [messages, setMessages] = useState([
-    {
-      id: "init-1",
-      role: "assistant",
-      content: "Hello! This is a simple conversational workspace. You can send text messages or attach a video recording of your screen to review.",
-      timestamp: Date.now()
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [attachedVideo, setAttachedVideo] = useState(null); // { name, size }
   const [isSending, setIsSending] = useState(false);
+  const [sessionId, setSessionId] = useState(getStoredSessionId);
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -39,6 +56,50 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      try {
+        const historyMessages = await invoke("load_chat_history", { sessionId });
+
+        if (cancelled) return;
+
+        if (!historyMessages.length) {
+          setMessages([createInitialMessage()]);
+          return;
+        }
+
+        setMessages(
+          historyMessages.map((message) => ({
+            id: `history-${message.id}`,
+            role: message.role === "user" ? "user" : "assistant",
+            content: message.content,
+            timestamp: Date.parse(message.createdAt) || Date.now(),
+            error: message.responseKind === "error",
+            video: message.filePath
+              ? {
+                  name: fileNameFromPath(message.filePath),
+                  path: message.filePath,
+                  size: "saved file"
+                }
+              : null
+          }))
+        );
+      } catch {
+        if (!cancelled) {
+          setMessages([createInitialMessage()]);
+        }
+      }
+    };
+
+    loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   // Handle File picker select
   const handleFileChange = (e) => {
@@ -51,15 +112,58 @@ function App() {
       const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
       setAttachedVideo({
         name: file.name,
-        size: `${sizeInMB} MB`
+        size: `${sizeInMB} MB`,
+        path: file.path // <-- Store the file path for later use
       });
     }
   };
+  const handlePickFile = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "Video", extensions: ["mp4", "mov", "avi", "mkv"] }],
+    });
 
+    if (selected) {
+      setAttachedVideo({
+        name: selected.split(/[\\/]/).pop(),  // extract filename
+        path: selected,                        // this is the real absolute path
+      });
+    }
+  };
   const handleRemoveAttachment = () => {
     setAttachedVideo(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFreshSession = async () => {
+    if (isSending) return;
+
+    setIsSending(true);
+
+    try {
+      await invoke("clear_chat_history");
+      localStorage.removeItem("chat_session_id");
+      setSessionId(getStoredSessionId());
+      setMessages([createInitialMessage()]);
+      setInputText("");
+      setAttachedVideo(null);
+      setAwaitingClarification(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: `Error clearing chat history: ${String(error)}`,
+          timestamp: Date.now(),
+          error: true
+        }
+      ]);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -68,13 +172,16 @@ function App() {
     if (e) e.preventDefault();
     const outgoingText = inputText.trim();
     if ((!outgoingText && !attachedVideo) || isSending) return;
+    const messageToSend = outgoingText || "Please transcribe this video.";
+    const filePath = attachedVideo?.path;
+    const isHumanReply = awaitingClarification && !filePath;
 
     const userMsg = {
       id: `u-${Date.now()}`,
       role: "user",
-      content: outgoingText,
+      content: messageToSend,
       timestamp: Date.now(),
-      video: attachedVideo ? { name: attachedVideo.name, size: attachedVideo.size } : null
+      video: attachedVideo ? { name: attachedVideo.name, size: attachedVideo.size, path: attachedVideo.path } : null
     };
 
     setMessages((currentMessages) => [...currentMessages, userMsg]);
@@ -83,19 +190,6 @@ function App() {
     setAttachedVideo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
 
-    if (!outgoingText) {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        {
-          id: `a-${Date.now() + 1}`,
-          role: "assistant",
-          content: "The gRPC server accepts text messages right now.",
-          timestamp: Date.now() + 10
-        }
-      ]);
-      return;
-    }
-
     const assistantId = `a-${Date.now() + 1}`;
     setIsSending(true);
     setMessages((currentMessages) => [
@@ -103,18 +197,27 @@ function App() {
       {
         id: assistantId,
         role: "assistant",
-        content: "Waiting for chat_server.py...",
+        content: "Loading...",
         timestamp: Date.now() + 10,
         pending: true
       }
     ]);
 
     try {
-      const serverMessages = await invoke("stream_chat_message", { message: outgoingText });
+      const serverMessages = await invoke("stream_chat_message", {
+        message: messageToSend,
+        filePath,
+        sessionId,
+        isHumanReply
+      });
+      const hasClarificationRequest = serverMessages.some(
+        (serverMessage) => serverMessage.kind === "clarification_request"
+      );
       const content = serverMessages.length
-        ? serverMessages.join("\n")
+        ? serverMessages.map((serverMessage) => serverMessage.message).join("\n")
         : "chat_server.py finished without sending a response.";
 
+      setAwaitingClarification(hasClarificationRequest);
       setMessages((currentMessages) =>
         currentMessages.map((message) =>
           message.id === assistantId
@@ -130,6 +233,7 @@ function App() {
             : message
         )
       );
+      setAwaitingClarification(false);
     } finally {
       setIsSending(false);
     }
@@ -139,8 +243,18 @@ function App() {
     <div className="chat-window">
       {/* Top Header */}
       <header className="chat-header">
-        <VideoIcon />
-        <h2>Conversational UI</h2>
+        <div className="chat-title">
+          <VideoIcon />
+          <h2>Conversational UI</h2>
+        </div>
+        <button
+          type="button"
+          className="fresh-session-btn"
+          onClick={handleFreshSession}
+          disabled={isSending}
+        >
+          Fresh Session
+        </button>
       </header>
 
       {/* Message Feed list */}
@@ -191,17 +305,10 @@ function App() {
 
           {/* Typing inputs row */}
           <div className="input-row">
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              accept="video/*"
-              onChange={handleFileChange}
-            />
             <button
               type="button"
               className="input-btn"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handlePickFile}
               title="Attach Video"
             >
               <PaperclipIcon />

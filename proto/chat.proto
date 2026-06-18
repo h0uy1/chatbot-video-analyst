@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package chat;
+
+service chatRoute {
+    rpc userChat(userQuery) returns (stream userResponse) {}
+    rpc getChatHistory(chatHistoryRequest) returns (chatHistoryResponse) {}
+    rpc clearChatHistory(clearChatHistoryRequest) returns (clearChatHistoryResponse) {}
+}
+
+message userQuery {
+    string message = 1;
+    string file_path = 2;
+    string session_id = 3;
+    bool is_human_reply = 4;
+}
+
+enum ResponseKind {
+    RESPONSE_KIND_UNSPECIFIED = 0;
+    ASSISTANT_MESSAGE = 1;
+    CLARIFICATION_REQUEST = 2;
+    ERROR = 3;
+}
+
+message userResponse {
+    string message = 1;
+    ResponseKind kind = 2;
+    string session_id = 3;
+}
+
+message chatHistoryRequest {
+    string session_id = 1;
+}
+
+message storedChatMessage {
+    int64 id = 1;
+    string session_id = 2;
+    string role = 3;
+    string content = 4;
+    string file_path = 5;
+    string response_kind = 6;
+    string created_at = 7;
+}
+
+message chatHistoryResponse {
+    repeated storedChatMessage messages = 1;
+}
+
+message clearChatHistoryRequest {}
+
+message clearChatHistoryResponse {
+    bool success = 1;
+    string message = 2;
+}
